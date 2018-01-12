@@ -1,3 +1,4 @@
+from importlib import import_module
 from django.http import HttpResponse
 
 import jwt
@@ -59,7 +60,10 @@ class JSONWebTokenAuthMixin(object):
             raise exceptions.AuthenticationFailed(msg)
 
         try:
-            payload = jwt_decode_handler(auth[1])
+            parts = settings.JWT_DECODE_HANDLER.split('.')
+            module_path = '.'.join(parts[:-1])
+            module = import_module(module_path)
+            payload = module.jwt_decode_handler(auth[1])
         except jwt.ExpiredSignature:
             msg = 'Signature has expired.'
             raise exceptions.AuthenticationFailed(msg)
@@ -76,10 +80,13 @@ class JSONWebTokenAuthMixin(object):
         Returns an active user that matches the payload's user id and email.
         """
         try:
-            user_id = jwt_get_user_id_from_payload(payload)
+            parts = settings.JWT_PAYLOAD_GET_USER_ID_HANDLER.split('.')
+            module_path = '.'.join(parts[:-1])
+            module = import_module(module_path)
+            username = module.jwt_get_user_id_from_payload(payload)
 
-            if user_id:
-                user = User.objects.get(pk=user_id, is_active=True)
+            if username:
+                user = User.objects.get_by_natural_key(username)
             else:
                 msg = 'Invalid payload'
                 raise exceptions.AuthenticationFailed(msg)
